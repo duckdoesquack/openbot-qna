@@ -10,7 +10,7 @@ load_dotenv()
 
 # Configure Streamlit page settings
 st.set_page_config(
-    page_title="OpenBot Chat - Perplexity Style",
+    page_title="OpenBot Chat",
     page_icon="🔍",
     layout="centered",
 )
