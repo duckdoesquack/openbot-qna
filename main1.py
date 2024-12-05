@@ -19,7 +19,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-README_URL = "https://raw.githubusercontent.com/isl-org/OpenBot/master/README.md"
+README_URL = "https://github.com/isl-org/OpenBot/blob/master/README.md"
 
 @st.cache_resource
 def fetch_readme_content(url):
