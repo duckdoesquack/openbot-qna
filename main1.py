@@ -72,7 +72,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-st.title("🔍 OpenBot Chat - Perplexity Style")
+st.title("🔍 OpenBot Chat")
 
 # User input area
 with st.form(key="user_input_form"):
