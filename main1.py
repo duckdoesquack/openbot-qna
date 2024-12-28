@@ -22,7 +22,13 @@ model = gen_ai.GenerativeModel('gemini-pro')
 
 README_URLS = [
     "https://github.com/isl-org/OpenBot/blob/master/README.md",
-    "https://github.com/isl-org/OpenBot/blob/master/android/README.md",
+    "https://github.com/isl-org/OpenBot/blob/master/android/README.md"
+    "https://github.com/isl-org/OpenBot/blob/master/android/controller/README.md"
+    "https://github.com/isl-org/OpenBot/blob/master/android/robot/README.md"
+    "https://github.com/isl-org/OpenBot/tree/master/android/robot/src/main/java/org/openbot/googleServices#readme"
+    "https://github.com/isl-org/OpenBot/blob/master/body/README.md"
+    "https://github.com/isl-org/OpenBot/blob/master/body/diy/README.md"
+    "https://github.com/isl-org/OpenBot/blob/master/body/diy/cad/block_body/README.md",
 ]
 
 @st.cache_resource
