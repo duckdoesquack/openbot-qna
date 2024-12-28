@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as gen_ai
+import re
 
 # Load environment variables
 load_dotenv()
@@ -19,42 +20,55 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-README_URL = "https://github.com/isl-org/OpenBot/blob/master/README.md"
+README_URLS = [
+    "https://github.com/isl-org/OpenBot/blob/master/README.md",
+    "https://github.com/isl-org/OpenBot/blob/master/android/README.md",
+]
 
 @st.cache_resource
 def fetch_readme_content(url):
-    response = requests.get(url)
-    if response.status_code != 200:
-        st.error("Failed to fetch README content. Please check the URL.")
+    try:
+        # Handle GitHub blob URLs
+        if "github.com" in url and "/blob/" in url:
+            # Convert to raw content URL
+            url = url.replace("/blob/", "/raw/")
+        
+        response = requests.get(url)
+        if response.status_code != 200:
+            st.error(f"Failed to fetch README content for {url}. Status code: {response.status_code}")
+            return None
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        readme_section = soup.find("article", {"class": "markdown-body"})
+        if not readme_section:
+            # If no markdown-body found, return the full text
+            return response.text
+
+        return readme_section.get_text(strip=True)
+    except Exception as e:
+        st.error(f"Error fetching README content: {e}")
         return None
 
-    soup = BeautifulSoup(response.content, 'html.parser')
-    readme_section = soup.find("article", {"class": "markdown-body"})
-    if not readme_section:
-        st.error("Could not extract README content.")
-        return None
+# Fetch contents of all README URLs
+readme_contents = []
+for url in README_URLS:
+    content = fetch_readme_content(url)
+    if content:
+        readme_contents.append(f"README from {url}:\n{content}")
 
-    return readme_section.get_text(strip=True)
-
-readme_content = fetch_readme_content(README_URL)
-if not readme_content:
-    st.stop()
+# Combine README contents
+combined_readme_content = "\n\n---\n\n".join(readme_contents)
 
 # Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Header section
+# Header section with CSS
 st.markdown("""
     <style>
         .main-container {
             max-width: 750px;
             margin: 0 auto;
-        }
-        .search-bar {
-            width: 100%;
-            margin-top: 20px;
-            margin-bottom: 20px;
         }
         .response-card {
             background-color: #f9f9f9;
@@ -62,7 +76,7 @@ st.markdown("""
             border-radius: 8px;
             padding: 15px;
             margin-top: 10px;
-            color: #333; /* Set text color to a readable dark shade */
+            color: #333;
         }
         .reference-text {
             font-size: 12px;
@@ -70,7 +84,6 @@ st.markdown("""
         }
     </style>
     """, unsafe_allow_html=True)
-
 
 st.title("🔍 OpenBot Chat")
 
@@ -85,15 +98,24 @@ with st.form(key="user_input_form"):
 
 # Process user input
 if submit_button and user_input:
+    # Check if README content is loaded
+    if not combined_readme_content:
+        st.error("Could not load README contents.")
+        st.stop()
+
     # Save user input to chat history
     st.session_state.chat_history.append(("user", user_input))
 
     # Generate response using Google Gemini
-    contextual_prompt = f"Based on the following README content, answer the question:\n\n{readme_content}\n\nQuestion: {user_input}"
-    response = model.start_chat(history=[]).send_message(contextual_prompt)
+    contextual_prompt = f"Based on the following combined README contents, answer the question precisely. If information is from a specific README, mention its source:\n\n{combined_readme_content}\n\nQuestion: {user_input}"
+    
+    try:
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
 
-    # Save response to chat history
-    st.session_state.chat_history.append(("assistant", response.text))
+        # Save response to chat history
+        st.session_state.chat_history.append(("assistant", response.text))
+    except Exception as e:
+        st.error(f"Error generating response: {e}")
 
 # Display chat history
 for role, message in st.session_state.chat_history:
@@ -105,12 +127,21 @@ for role, message in st.session_state.chat_history:
             </div>
             """, unsafe_allow_html=True)
     else:
+        # Extract links from assistant's response
+        links = re.findall(r'\((https?://[^\s]+)\)', message)
+        link_html = ""
+        if links:
+            link_html = " ".join(
+                f'<a href="{link}" target="_blank">{link}</a>' for link in links
+            )
+
+        # Add assistant's response with dynamically linked sources
         st.markdown(f"""
             <div class="response-card">
                 <strong>Gemini-Pro:</strong>
                 <p>{message}</p>
                 <div class="reference-text">
-                    Based on the README content from <a href="{README_URL}" target="_blank">OpenBot GitHub</a>.
+                    Based on OpenBot README content from {link_html}.
                 </div>
             </div>
             """, unsafe_allow_html=True)
