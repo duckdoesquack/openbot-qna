@@ -119,6 +119,35 @@ def summarize_readmes():
 def main():
     st.title("🔍 OpenBot Chat")
 
+    st.markdown("""
+    <style>
+        .main-container {
+            max-width: 750px;
+            margin: 0 auto;
+        }
+        .response-card {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #333;
+        }
+        .reference-text {
+            font-size: 12px;
+            color: #555;
+        }
+        .source-link {
+            color: #0366d6;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        .source-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Initialize or load summarized content
     if 'combined_summary' not in st.session_state:
         st.session_state.combined_summary = summarize_readmes()
