@@ -119,36 +119,6 @@ def summarize_readmes():
 def main():
     st.title("🔍 OpenBot Chat")
 
-    # Header section with CSS
-    st.markdown("""
-        <style>
-            .main-container {
-                max-width: 750px;
-                margin: 0 auto;
-            }
-            .response-card {
-                background-color: #f9f9f9;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-                color: #333;
-            }
-            .reference-text {
-                font-size: 12px;
-                color: #555;
-            }
-            .source-link {
-                color: #0366d6;
-                text-decoration: none;
-                margin-right: 10px;
-            }
-            .source-link:hover {
-                text-decoration: underline;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-
     # Initialize or load summarized content
     if 'combined_summary' not in st.session_state:
         st.session_state.combined_summary = summarize_readmes()
@@ -171,55 +141,53 @@ def main():
         )
         submit_button = st.form_submit_button("Ask")
 
-   if submit_button and user_input:
-    # Check if summarized content is loaded
-    if not combined_summary_content:
-        st.error("Could not load summarized README contents.")
-        st.stop()
+    # Process user input
+    if submit_button and user_input:
+        GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+        gen_ai.configure(api_key=GOOGLE_API_KEY)
+        model = gen_ai.GenerativeModel('gemini-pro')
 
-    # Save user input to chat history
-    st.session_state.chat_history.append(("user", user_input))
+        # Add user input to chat history
+        st.session_state.chat_history.append(("user", user_input))
 
-    # Split the summarized content into chunks if necessary
-    CHUNK_SIZE = 15000  # Adjust chunk size to fit within token limits
-    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
-
-    responses = []
-    for chunk in readme_chunks:
-        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information comes from a specific README, include that source in your response:
-
-{chunk}
+        # Generate response
+        responses = []
+        try:
+            for display_url, raw_url in README_URLS.items():
+                contextual_prompt = f"""Content from README file ({display_url}):
+{fetch_readme_content(display_url, raw_url)}
 
 Question: {user_input}
 
 Please provide a comprehensive answer and cite which README file(s) the information comes from."""
-        try:
-            response = model.start_chat(history=[]).send_message(contextual_prompt)
-            responses.append(response.text)
+                
+                response = model.start_chat(history=[]).send_message(contextual_prompt)
+                responses.append(f"From {display_url}:\n{response.text}")
+                time.sleep(random.uniform(0.5, 1.5))  # Rate-limit mitigation
+
         except Exception as e:
-            st.error(f"Error generating response for a chunk: {e}")
-            continue
+            st.error(f"Error generating response: {e}")
 
-    # Combine the responses into a single reply
-    final_response = "\n\n---\n\n".join(responses)
-    st.session_state.chat_history.append(("assistant", final_response))
+        # Combine the responses into a single reply
+        final_response = "\n\n---\n\n".join(responses)
+        st.session_state.chat_history.append(("assistant", final_response))
 
-# Display chat history
-for role, message in st.session_state.chat_history:
-    if role == "user":
-        st.markdown(f"""
-            <div class="response-card">
-                <strong>You:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-            <div class="response-card">
-                <strong>Gemini-Pro:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    # Display chat history
+    for role, message in st.session_state.chat_history:
+        if role == "user":
+            st.markdown(f"""
+                <div class="response-card">
+                    <strong>You:</strong>
+                    <p>{message}</p>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+                <div class="response-card">
+                    <strong>Gemini-Pro:</strong>
+                    <p>{message}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-f __name__ == "__main__":
+if __name__ == "__main__":
     main()
