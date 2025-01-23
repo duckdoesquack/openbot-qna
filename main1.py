@@ -171,48 +171,55 @@ def main():
         )
         submit_button = st.form_submit_button("Ask")
 
-    # Process user input
-    if submit_button and user_input:
-        GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-        gen_ai.configure(api_key=GOOGLE_API_KEY)
-        model = gen_ai.GenerativeModel('gemini-pro')
+   if submit_button and user_input:
+    # Check if summarized content is loaded
+    if not combined_summary_content:
+        st.error("Could not load summarized README contents.")
+        st.stop()
 
-        # Add user input to chat history
-        st.session_state.chat_history.append(("user", user_input))
+    # Save user input to chat history
+    st.session_state.chat_history.append(("user", user_input))
 
-        # Generate response
+    # Split the summarized content into chunks if necessary
+    CHUNK_SIZE = 15000  # Adjust chunk size to fit within token limits
+    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
+
+    responses = []
+    for chunk in readme_chunks:
+        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information comes from a specific README, include that source in your response:
+
+{chunk}
+
+Question: {user_input}
+
+Please provide a comprehensive answer and cite which README file(s) the information comes from."""
         try:
-            contextual_prompt = f"""Based on these README summaries:
-{st.session_state.combined_summary}
-
-Provide a concise, informative answer to this question: {user_input}
-
-Include references if relevant."""
-            
             response = model.start_chat(history=[]).send_message(contextual_prompt)
-            
-            # Add AI response to chat history
-            st.session_state.chat_history.append(("assistant", response.text))
-        
+            responses.append(response.text)
         except Exception as e:
-            st.error(f"Response generation error: {e}")
+            st.error(f"Error generating response for a chunk: {e}")
+            continue
 
-    # Display chat history
-    for role, message in st.session_state.chat_history:
-        if role == "user":
-            st.markdown(f"""
-                <div class="response-card">
-                    <strong>You:</strong>
-                    <p>{message}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-                <div class="response-card">
-                    <strong>Gemini-Pro:</strong>
-                    <p>{message}</p>
-                </div>
-                """, unsafe_allow_html=True)
+    # Combine the responses into a single reply
+    final_response = "\n\n---\n\n".join(responses)
+    st.session_state.chat_history.append(("assistant", final_response))
 
-if __name__ == "__main__":
+# Display chat history
+for role, message in st.session_state.chat_history:
+    if role == "user":
+        st.markdown(f"""
+            <div class="response-card">
+                <strong>You:</strong>
+                <p>{message}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div class="response-card">
+                <strong>Gemini-Pro:</strong>
+                <p>{message}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+f __name__ == "__main__":
     main()
