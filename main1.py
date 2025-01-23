@@ -106,7 +106,17 @@ if submit_button and user_input:
     st.session_state.chat_history.append(("user", user_input))
 
     # Create prompt with pre-processed content
-    contextual_prompt = f"""Based on the following summarized README content, please provide a detailed answer to the question:
+    contextual_prompt = f"""
+    Based on the README content below, answer this question: {user_input}
+    
+    Quote relevant information directly and always include the source URL.
+    If information isn't found, say so clearly.
+    Format your response with the source link at the end like this:
+    [Source: URL]
+    
+    Content:
+    {combined_summary_content}
+    """
 
 {combined_summary_content}
 
