@@ -25,6 +25,19 @@ def load_summaries():
     try:
         with open('readme_summaries.json', 'r', encoding='utf-8') as f:
             return json.load(f)
+    except FileNotFoundError:
+        st.warning("No summaries found. Running initial preprocessing...")
+        try:
+            # Import and run preprocessing
+            import preprocess_readme
+            preprocess_readme.fetch_and_summarize()
+            
+            # Try loading again
+            with open('readme_summaries.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Failed to generate summaries: {e}")
+            return {}
     except Exception as e:
         st.error(f"Error loading summaries: {e}")
         return {}
