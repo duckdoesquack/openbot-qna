@@ -4,22 +4,18 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
 
-# Load environment variables
 load_dotenv()
 
-# Configure Streamlit page settings
 st.set_page_config(
     page_title="OpenBot Chat",
     page_icon="🔍",
     layout="centered",
 )
 
-# Configure Google AI
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-# Load pre-processed summaries
 @st.cache_resource
 def load_summaries():
     try:
@@ -39,52 +35,60 @@ def load_summaries():
         st.error(f"Error loading summaries: {e}")
         return {}
 
-# Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Load the pre-processed summaries
 summaries = load_summaries()
-
-# Combine all summaries
 combined_summary_content = "\n\n---\n\n".join(
-    f"Summary from {url}:\n{data['summary']}" 
+    f"Content from {url}:\n{data['summary']}" 
     for url, data in summaries.items()
 )
 
-# Header and CSS
 st.markdown("""
-<style>
-    .main-container {
-        max-width: 750px;
-        margin: 0 auto;
-    }
-    .response-card {
-        background-color: #f9f9f9;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 15px;
-        margin-top: 10px;
-        color: #333;
-    }
-    .reference-text {
-        font-size: 12px;
-        color: #555;
-    }
-    .source-link {
-        color: #0366d6;
-        text-decoration: none;
-        margin-right: 10px;
-    }
-    .source-link:hover {
-        text-decoration: underline;
-    }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+        .main-container {
+            max-width: 750px;
+            margin: 0 auto;
+        }
+        .response-card {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #333;
+        }
+        .reference-text {
+            font-size: 12px;
+            color: #555;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+        .source-link {
+            color: #0366d6;
+            text-decoration: none;
+            margin-right: 10px;
+            padding: 2px 6px;
+            background: #f1f8ff;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .source-link:hover {
+            background: #dbedff;
+        }
+        .summary-text {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 st.title("🔍 OpenBot Chat")
 
-# User input area
 with st.form(key="user_input_form"):
     user_input = st.text_input(
         "Ask a question about OpenBot",
@@ -93,7 +97,6 @@ with st.form(key="user_input_form"):
     )
     submit_button = st.form_submit_button("Ask")
 
-# Process user input
 if submit_button and user_input:
     if not combined_summary_content:
         st.error("Could not load summarized README contents.")
@@ -101,35 +104,70 @@ if submit_button and user_input:
 
     st.session_state.chat_history.append(("user", user_input))
 
-    contextual_prompt = f"""Based on the README content below, answer this question: {user_input}
-
-IMPORTANT: For any information you quote or reference, you must include the EXACT source URL from where the information was found (one of the GitHub README URLs preceding each summary).
+    contextual_prompt = f"""Based on the following content, provide:
+1. A one-sentence summary
+2. A detailed answer
+3. Relevant source URLs
 
 Content:
 {combined_summary_content}
 
-End your response with:
-Source(s): [List the exact GitHub URLs used]"""
+Question: {user_input}
+
+Format:
+SUMMARY: [one sentence]
+ANSWER: [detailed explanation]
+SOURCES: [urls]"""
 
     try:
         response = model.start_chat(history=[]).send_message(contextual_prompt)
-        st.session_state.chat_history.append(("assistant", response.text))
+        
+        sections = {
+            'SUMMARY': '',
+            'ANSWER': '',
+            'SOURCES': []
+        }
+        
+        current_section = None
+        for line in response.text.split('\n'):
+            if line.startswith('SUMMARY:'):
+                current_section = 'SUMMARY'
+                sections[current_section] = line.replace('SUMMARY:', '').strip()
+            elif line.startswith('ANSWER:'):
+                current_section = 'ANSWER'
+                sections[current_section] = line.replace('ANSWER:', '').strip()
+            elif line.startswith('SOURCES:'):
+                current_section = 'SOURCES'
+                sources_text = line.replace('SOURCES:', '').strip()
+                sections[current_section] = [url.strip() for url in sources_text.split(',')]
+            elif current_section and line.strip():
+                if current_section == 'SOURCES':
+                    sections[current_section].extend([url.strip() for url in line.split(',')])
+                else:
+                    sections[current_section] += ' ' + line.strip()
+        
+        st.session_state.chat_history.append(("assistant", sections))
+        
     except Exception as e:
         st.error(f"Error generating response: {e}")
 
-# Display chat history
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
-<div class="response-card">
-    <strong>You:</strong>
-    <p>{message}</p>
-</div>
-""", unsafe_allow_html=True)
+            <div class="response-card">
+                <strong>You:</strong>
+                <p>{message}</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.markdown(f"""
-<div class="response-card">
-    <strong>Assistant:</strong>
-    <p>{message}</p>
-</div>
-""", unsafe_allow_html=True)
+            <div class="response-card">
+                <strong>Assistant:</strong>
+                <div class="summary-text">{message['SUMMARY']}</div>
+                <p>{message['ANSWER']}</p>
+                <div class="reference-text">
+                    <strong>Sources:</strong><br>
+                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 Source {i+1}</a>' for i, url in enumerate(message['SOURCES']))}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
