@@ -3,31 +3,23 @@ import json
 import os
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
-from tenacity import retry, wait_exponential, stop_after_attempt
-import time
 
+# Load environment variables
 load_dotenv()
 
+# Configure Streamlit page settings
 st.set_page_config(
     page_title="OpenBot Chat",
     page_icon="🔍",
     layout="centered",
 )
 
+# Configure Google AI
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-@retry(wait=wait_exponential(min=1, max=60), stop=stop_after_attempt(3))
-def get_model_response(prompt):
-    try:
-        return model.start_chat(history=[]).send_message(prompt)
-    except Exception as e:
-        if "429" in str(e):
-            time.sleep(2)
-            raise
-        raise
-
+# Load pre-processed summaries
 @st.cache_resource
 def load_summaries():
     try:
@@ -36,8 +28,11 @@ def load_summaries():
     except FileNotFoundError:
         st.warning("No summaries found. Running initial preprocessing...")
         try:
+            # Import and run preprocessing
             import preprocess_readme
             preprocess_readme.fetch_and_summarize()
+            
+            # Try loading again
             with open('readme_summaries.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
@@ -47,18 +42,26 @@ def load_summaries():
         st.error(f"Error loading summaries: {e}")
         return {}
 
+# Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
+# Load the pre-processed summaries
 summaries = load_summaries()
+
+# Combine all summaries
 combined_summary_content = "\n\n---\n\n".join(
-    f"Content from {url}:\n{data['summary']}" 
+    f"Summary from {url}:\n{data['summary']}" 
     for url, data in summaries.items()
 )
 
+# Header and CSS (keep your existing CSS)
 st.markdown("""
     <style>
-        .main-container { max-width: 750px; margin: 0 auto; }
+        .main-container {
+            max-width: 750px;
+            margin: 0 auto;
+        }
         .response-card {
             background-color: #f9f9f9;
             border: 1px solid #ddd;
@@ -70,32 +73,21 @@ st.markdown("""
         .reference-text {
             font-size: 12px;
             color: #555;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #eee;
         }
         .source-link {
             color: #0366d6;
             text-decoration: none;
             margin-right: 10px;
-            padding: 2px 6px;
-            background: #f1f8ff;
-            border-radius: 3px;
-            font-size: 12px;
         }
-        .source-link:hover { background: #dbedff; }
-        .summary-text {
-            color: #666;
-            font-style: italic;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #eee;
+        .source-link:hover {
+            text-decoration: underline;
         }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🔍 OpenBot Chat")
 
+# User input area
 with st.form(key="user_input_form"):
     user_input = st.text_input(
         "Ask a question about OpenBot",
@@ -104,57 +96,31 @@ with st.form(key="user_input_form"):
     )
     submit_button = st.form_submit_button("Ask")
 
+# Process user input
 if submit_button and user_input:
     if not combined_summary_content:
         st.error("Could not load summarized README contents.")
         st.stop()
 
+    # Save user input to chat history
     st.session_state.chat_history.append(("user", user_input))
 
-    contextual_prompt = f"""Based on the following content, please provide a comprehensive answer with citations referencing the relevant README file sources.
+    # Create prompt with pre-processed content
+    contextual_prompt = f"""Based on the following summarized README content, please provide a detailed answer to the question:
 
-Content:
 {combined_summary_content}
 
 Question: {user_input}
 
-Your response should include:
-SUMMARY: Brief overview
-ANSWER: Detailed explanation with inline citations [owner/repo]
-SOURCES: Full URLs of referenced repositories"""
+Please provide a comprehensive answer and cite which README file(s) the information comes from."""
 
     try:
-        response = get_model_response(contextual_prompt)
-        
-        sections = {
-            'SUMMARY': '',
-            'ANSWER': '',
-            'SOURCES': []
-        }
-        
-        current_section = None
-        for line in response.text.split('\n'):
-            if line.startswith('SUMMARY:'):
-                current_section = 'SUMMARY'
-                sections[current_section] = line.replace('SUMMARY:', '').strip()
-            elif line.startswith('ANSWER:'):
-                current_section = 'ANSWER'
-                sections[current_section] = line.replace('ANSWER:', '').strip()
-            elif line.startswith('SOURCES:'):
-                current_section = 'SOURCES'
-                sources_text = line.replace('SOURCES:', '').strip()
-                sections[current_section] = [url.strip() for url in sources_text.split(',')]
-            elif current_section and line.strip():
-                if current_section == 'SOURCES':
-                    sections[current_section].extend([url.strip() for url in line.split(',')])
-                else:
-                    sections[current_section] += ' ' + line.strip()
-        
-        st.session_state.chat_history.append(("assistant", sections))
-        
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        st.session_state.chat_history.append(("assistant", response.text))
     except Exception as e:
         st.error(f"Error generating response: {e}")
 
+# Display chat history
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
@@ -166,12 +132,7 @@ for role, message in st.session_state.chat_history:
     else:
         st.markdown(f"""
             <div class="response-card">
-                <strong>Assistant</strong>
-                <div class="summary-text">{message.get('SUMMARY', '')}</div>
-                <p>{message.get('ANSWER', '')}</p>
-                {f'''<div class="reference-text">
-                    Sources:<br>
-                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 {url.split("/")[-2]}/{url.split("/")[-1]}</a>' for url in message.get('SOURCES', []))}
-                </div>''' if message.get('SOURCES') else ''}
+                <strong>Assistant:</strong>
+                <p>{message}</p>
             </div>
             """, unsafe_allow_html=True)
