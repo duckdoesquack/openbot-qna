@@ -28,11 +28,8 @@ def load_summaries():
     except FileNotFoundError:
         st.warning("No summaries found. Running initial preprocessing...")
         try:
-            # Import and run preprocessing
             import preprocess_readme
             preprocess_readme.fetch_and_summarize()
-            
-            # Try loading again
             with open('readme_summaries.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
@@ -55,35 +52,35 @@ combined_summary_content = "\n\n---\n\n".join(
     for url, data in summaries.items()
 )
 
-# Header and CSS (keep your existing CSS)
+# Header and CSS
 st.markdown("""
-    <style>
-        .main-container {
-            max-width: 750px;
-            margin: 0 auto;
-        }
-        .response-card {
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 10px;
-            color: #333;
-        }
-        .reference-text {
-            font-size: 12px;
-            color: #555;
-        }
-        .source-link {
-            color: #0366d6;
-            text-decoration: none;
-            margin-right: 10px;
-        }
-        .source-link:hover {
-            text-decoration: underline;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+    .main-container {
+        max-width: 750px;
+        margin: 0 auto;
+    }
+    .response-card {
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+        color: #333;
+    }
+    .reference-text {
+        font-size: 12px;
+        color: #555;
+    }
+    .source-link {
+        color: #0366d6;
+        text-decoration: none;
+        margin-right: 10px;
+    }
+    .source-link:hover {
+        text-decoration: underline;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("🔍 OpenBot Chat")
 
@@ -102,17 +99,17 @@ if submit_button and user_input:
         st.error("Could not load summarized README contents.")
         st.stop()
 
-    # Save user input to chat history
     st.session_state.chat_history.append(("user", user_input))
 
-    # Create prompt with pre-processed content
-    contextual_prompt = f"""Based on the following summarized README content, please provide a detailed answer to the question:
+    contextual_prompt = f"""Based on the README content below, answer this question: {user_input}
 
+IMPORTANT: For any information you quote or reference, you must include the EXACT source URL from where the information was found (one of the GitHub README URLs preceding each summary).
+
+Content:
 {combined_summary_content}
 
-Question: {user_input}
-
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
+End your response with:
+Source(s): [List the exact GitHub URLs used]"""
 
     try:
         response = model.start_chat(history=[]).send_message(contextual_prompt)
@@ -124,15 +121,15 @@ Please provide a comprehensive answer and cite which README file(s) the informat
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
-            <div class="response-card">
-                <strong>You:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
+<div class="response-card">
+    <strong>You:</strong>
+    <p>{message}</p>
+</div>
+""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
-            <div class="response-card">
-                <strong>Assistant:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
+<div class="response-card">
+    <strong>Assistant:</strong>
+    <p>{message}</p>
+</div>
+""", unsafe_allow_html=True)
