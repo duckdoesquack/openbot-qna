@@ -4,9 +4,6 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
 
-# Import preprocessing
-from preprocess_readme import fetch_and_summarize
-
 # Load environment variables
 load_dotenv()
 
