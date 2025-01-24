@@ -111,17 +111,17 @@ if submit_button and user_input:
 
     st.session_state.chat_history.append(("user", user_input))
 
-    contextual_prompt = f"""Based on the following content, provide:
-1. A one-sentence summary
-2. A detailed answer
-3. Relevant source URLs
+    contextual_prompt = f"""Based on the following content, please provide a comprehensive answer with citations referencing the relevant README file sources.
 
 Content:
 {combined_summary_content}
 
 Question: {user_input}
 
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
+Your response should include:
+SUMMARY: Brief overview
+ANSWER: Detailed explanation with inline citations [owner/repo]
+SOURCES: Full URLs of referenced repositories"""
 
     try:
         response = get_model_response(contextual_prompt)
@@ -171,7 +171,7 @@ for role, message in st.session_state.chat_history:
                 <p>{message['ANSWER']}</p>
                 <div class="reference-text">
                     <strong>Sources:</strong><br>
-                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 Source {i+1}</a>' for i, url in enumerate(message['SOURCES']))}
+                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 {url.split("/")[-2]}/{url.split("/")[-1]}</a>' for url in message['SOURCES'])}
                 </div>
             </div>
             """, unsafe_allow_html=True)
