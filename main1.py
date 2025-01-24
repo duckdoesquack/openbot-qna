@@ -32,9 +32,23 @@ def get_model_response(prompt):
 def load_summaries():
     try:
         with open('readme_summaries.json', 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            st.write("Debug - Loaded URLs:", list(data.keys()))
-            return data
+            return json.load(f)
+    except FileNotFoundError:
+        st.warning("No summaries found. Running initial preprocessing...")
+        try:
+            import preprocess_readme
+            preprocess_readme.fetch_and_summarize()
+            with open('readme_summaries.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"Failed to generate summaries: {e}")
+            return {}
+    except Exception as e:
+        st.error(f"Error loading summaries: {e}")
+        return {}
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 summaries = load_summaries()
 combined_summary_content = "\n\n---\n\n".join(
