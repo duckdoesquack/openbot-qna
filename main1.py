@@ -18,7 +18,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-@retry(wait=wait_exponential(min=1, max=60), stop=stop_after_attempt(3))
+@retry(wait=wait_exponential(min=2, max=120), stop=stop_after_attempt(5))
 def get_model_response(prompt):
     try:
         return model.start_chat(history=[]).send_message(prompt)
