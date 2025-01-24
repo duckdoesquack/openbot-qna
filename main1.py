@@ -3,6 +3,8 @@ import json
 import os
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
+from tenacity import retry, wait_exponential, stop_after_attempt
+import time
 
 load_dotenv()
 
@@ -15,6 +17,16 @@ st.set_page_config(
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
+
+@retry(wait=wait_exponential(min=1, max=60), stop=stop_after_attempt(3))
+def get_model_response(prompt):
+    try:
+        return model.start_chat(history=[]).send_message(prompt)
+    except Exception as e:
+        if "429" in str(e):
+            time.sleep(2)
+            raise
+        raise
 
 @st.cache_resource
 def load_summaries():
@@ -46,10 +58,7 @@ combined_summary_content = "\n\n---\n\n".join(
 
 st.markdown("""
     <style>
-        .main-container {
-            max-width: 750px;
-            margin: 0 auto;
-        }
+        .main-container { max-width: 750px; margin: 0 auto; }
         .response-card {
             background-color: #f9f9f9;
             border: 1px solid #ddd;
@@ -74,9 +83,7 @@ st.markdown("""
             border-radius: 3px;
             font-size: 12px;
         }
-        .source-link:hover {
-            background: #dbedff;
-        }
+        .source-link:hover { background: #dbedff; }
         .summary-text {
             color: #666;
             font-style: italic;
@@ -120,7 +127,7 @@ ANSWER: [detailed explanation]
 SOURCES: [urls]"""
 
     try:
-        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        response = get_model_response(contextual_prompt)
         
         sections = {
             'SUMMARY': '',
