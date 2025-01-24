@@ -166,12 +166,12 @@ for role, message in st.session_state.chat_history:
     else:
         st.markdown(f"""
             <div class="response-card">
-                <strong>Assistant:</strong>
-                <div class="summary-text">{message['SUMMARY']}</div>
-                <p>{message['ANSWER']}</p>
-                <div class="reference-text">
-                    <strong>Sources:</strong><br>
-                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 {url.split("/")[-2]}/{url.split("/")[-1]}</a>' for url in message['SOURCES'])}
-                </div>
+                <strong>Assistant</strong>
+                <div class="summary-text">{message.get('SUMMARY', '')}</div>
+                <p>{message.get('ANSWER', '')}</p>
+                {f'''<div class="reference-text">
+                    Sources:<br>
+                    {''.join(f'<a href="{url}" class="source-link" target="_blank">📄 {url.split("/")[-2]}/{url.split("/")[-1]}</a>' for url in message.get('SOURCES', []))}
+                </div>''' if message.get('SOURCES') else ''}
             </div>
             """, unsafe_allow_html=True)
