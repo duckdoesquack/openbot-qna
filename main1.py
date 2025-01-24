@@ -121,10 +121,7 @@ Content:
 
 Question: {user_input}
 
-Format:
-SUMMARY: [one sentence]
-ANSWER: [detailed explanation]
-SOURCES: [urls]"""
+Please provide a comprehensive answer and cite which README file(s) the information comes from."""
 
     try:
         response = get_model_response(contextual_prompt)
