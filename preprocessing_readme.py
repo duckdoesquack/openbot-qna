@@ -95,16 +95,20 @@ def fetch_and_summarize(progress_bar=None):
                 content = response.text
                 
                 # More specific summary prompt
-                summary_prompt = f"""Create a detailed, searchable summary of this README. Include:
+                summary_prompt = f"""
+                Create a detailed, searchable summary of this README. Include:
                 1. ALL technical information verbatim (commands, URLs, paths, versions)
                 2. ALL setup instructions and requirements exactly as written
                 3. ALL features and capabilities
                 4. ALL functionality descriptions
                 5. ALL configuration options
                 Do not paraphrase technical details. Keep exact wording for critical information.
-                
+
                 README content:
-                {content}"""
+                {content}
+
+                Please ensure the summary retains exact links, commands, and technical details.
+                """
                 
                 summary_response = model.start_chat(history=[]).send_message(summary_prompt)
                 
