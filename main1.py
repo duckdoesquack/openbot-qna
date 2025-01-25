@@ -1,7 +1,7 @@
+import time
 import streamlit as st
 import google.generativeai as gen_ai
 import requests
-from typing import Dict, List, Tuple
 
 # Initialize Gemini
 gen_ai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
