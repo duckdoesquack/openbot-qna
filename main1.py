@@ -11,10 +11,11 @@ def load_readme_data():
     try:
         with open('readme_summaries.json', 'r') as f:
             data = json.load(f)
-        return data["summaries"], datetime.fromtimestamp(data["last_updated"])
+        latest_update = max(item["last_updated"] for item in data.values())
+        return data, datetime.fromisoformat(latest_update)
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-        return [], datetime.now()
+        return {}, datetime.now()
 
 st.set_page_config(page_title="OpenBot Chat", page_icon="🔍", layout="centered")
 
@@ -62,11 +63,12 @@ with st.form("chat_form"):
 if submit and user_input:
     st.session_state.chat_history.append(("user", user_input))
     
+    documentation = "\n".join([f"[{url}]: {data['summary']}" for url, data in readme_data.items()])
     prompt = f"""Based on these OpenBot documentation summaries, answer the question. 
-Include [SourceName] tags to indicate which README files contributed to your answer.
+Include [Source: URL] tags to indicate which README files contributed to your answer.
 
 Documentation:
-{' '.join([f'[{name}]: {summary}' for name, summary in readme_data])}
+{documentation}
 
 Question: {user_input}"""
 
