@@ -43,7 +43,9 @@ def fetch_and_summarize_readmes() -> List[Tuple[str, str]]:
 }
     
     summaries = []
-    for name, url in README_URLS.items():
+    for i, (name, url) in enumerate(README_URLS.items()):
+        if i > 0 and i % 5 == 0:  # Add delay every 5 requests
+            time.sleep(60)  # Wait 60 seconds
         try:
             content = requests.get(url).text
             summary = model.start_chat(history=[]).send_message(
