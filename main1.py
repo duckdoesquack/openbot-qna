@@ -1,64 +1,21 @@
-import time
 import streamlit as st
 import google.generativeai as gen_ai
-import requests
-from typing import List, Tuple
+import json
+from datetime import datetime
 
-# Initialize Gemini
 gen_ai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = gen_ai.GenerativeModel('gemini-pro')
 
-# Store README data in session state instead of SQLite
-@st.cache_data(ttl=3600)  # Cache for 1 hour
-def fetch_and_summarize_readmes() -> List[Tuple[str, str]]:
-    README_URLS = {
-    "Main README": "https://raw.githubusercontent.com/isl-org/OpenBot/master/README.md",
-    "Android README": "https://raw.githubusercontent.com/isl-org/OpenBot/master/android/README.md",
-    "Android Controller": "https://raw.githubusercontent.com/isl-org/OpenBot/master/android/controller/README.md",
-    "Android Robot": "https://raw.githubusercontent.com/isl-org/OpenBot/master/android/robot/README.md",
-    "Google Services": "https://raw.githubusercontent.com/isl-org/OpenBot/master/android/robot/src/main/java/org/openbot/googleServices/README.md",
-    "Contribution Guide": "https://raw.githubusercontent.com/isl-org/OpenBot/master/android/robot/ContributionGuide.md",
-    "Body": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/README.md",
-    "Block Body": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/cad/block_body/README.md",
-    "Glue Body": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/cad/glue_body/README.md",
-    "Regular Body": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/cad/regular_body/README.md",
-    "Slim Body": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/cad/slim_body/README.md",
-    "PCB": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/pcb/README.md",
-    "DIY": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/diy/README.md",
-    "Lite": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/lite/README.md",
-    "MTV PCB": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/mtv/pcb/README.md",
-    "MTV": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/mtv/README.md",
-    "RC Truck": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/rc_truck/README.md",
-    "RTR": "https://raw.githubusercontent.com/ob-f/OpenBot/master/body/rtr/README.md",
-    "Launch Image": "https://raw.githubusercontent.com/ob-f/OpenBot/master/controller/flutter/ios/Runner/Assets.xcassets/LaunchImage.imageset/README.md",
-    "Flutter": "https://raw.githubusercontent.com/ob-f/OpenBot/master/controller/flutter/README.md",
-    "Firmware": "https://raw.githubusercontent.com/ob-f/OpenBot/master/firmware/README.md",
-    "Authentication": "https://raw.githubusercontent.com/ob-f/OpenBot/master/ios/OpenBot/OpenBot/Authentication/README.md",
-    "iOS": "https://raw.githubusercontent.com/ob-f/OpenBot/master/ios/OpenBot/README.md",
-    "Blockly": "https://raw.githubusercontent.com/ob-f/OpenBot/master/open-code/src/components/blockly/README.md",
-    "Services": "https://raw.githubusercontent.com/ob-f/OpenBot/master/open-code/src/services/README.md",
-    "Open Code": "https://raw.githubusercontent.com/ob-f/OpenBot/master/open-code/README.md",
-    "Policy Frontend": "https://raw.githubusercontent.com/ob-f/OpenBot/master/policy/frontend/README.md",
-    "Policy": "https://raw.githubusercontent.com/ob-f/OpenBot/master/policy/README.md",
-    "Python": "https://raw.githubusercontent.com/ob-f/OpenBot/master/python/README.md"
-}
-    
-    summaries = []
-    for i, (name, url) in enumerate(README_URLS.items()):
-        if i > 0 and i % 5 == 0:  # Add delay every 5 requests
-            time.sleep(60)  # Wait 60 seconds
-        try:
-            content = requests.get(url).text
-            summary = model.start_chat(history=[]).send_message(
-                f"Summarize this README:\n\n{content}",
-                generation_config={"temperature": 0.3, "max_output_tokens": 500}
-            ).text
-            summaries.append((name, summary))
-        except Exception as e:
-            st.error(f"Error processing {name}: {str(e)}")
-    return summaries
+@st.cache_data
+def load_readme_data():
+    try:
+        with open('readme_summaries.json', 'r') as f:
+            data = json.load(f)
+        return data["summaries"], datetime.fromtimestamp(data["last_updated"])
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return [], datetime.now()
 
-# UI Setup
 st.set_page_config(page_title="OpenBot Chat", page_icon="🔍", layout="centered")
 
 st.markdown("""
@@ -85,10 +42,8 @@ st.markdown("""
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Initialize or get README summaries
-if "readme_data" not in st.session_state:
-    with st.spinner("Loading OpenBot documentation..."):
-        st.session_state.readme_data = fetch_and_summarize_readmes()
+readme_data, last_updated = load_readme_data()
+st.sidebar.info(f"Data last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
 
 st.title("🔍 OpenBot Chat")
 
@@ -103,7 +58,7 @@ if submit and user_input:
 Include [SourceName] tags to indicate which README files contributed to your answer.
 
 Documentation:
-{' '.join([f'[{name}]: {summary}' for name, summary in st.session_state.readme_data])}
+{' '.join([f'[{name}]: {summary}' for name, summary in readme_data])}
 
 Question: {user_input}"""
 
@@ -116,7 +71,6 @@ Question: {user_input}"""
     except Exception as e:
         st.error(f"Error generating response: {str(e)}")
 
-# Display chat history
 for role, message in st.session_state.chat_history:
     css_class = "user-message" if role == "user" else "bot-message"
     speaker = "You" if role == "user" else "Assistant"
