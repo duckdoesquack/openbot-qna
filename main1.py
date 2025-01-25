@@ -1,108 +1,121 @@
 import streamlit as st
-import google.generativeai as gen_ai
 import json
-import time
-from datetime import datetime
+import os
+from dotenv import load_dotenv
+import google.generativeai as gen_ai
 
-gen_ai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# Import preprocessing
+from preprocess_readme import fetch_and_summarize
+
+# Load environment variables
+load_dotenv()
+
+# Configure Streamlit page settings
+st.set_page_config(
+    page_title="OpenBot Chat",
+    page_icon="🔍",
+    layout="centered",
+)
+
+# Configure Google AI
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    st.error("Please set your GOOGLE_API_KEY in .env file")
+    st.stop()
+
+gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-@st.cache_data
-def load_readme_data():
+# Load or create summaries
+@st.cache_resource
+def load_summaries():
     try:
-        with open('readme_summaries.json', 'r') as f:
-            data = json.load(f)
-        latest_update = max(item["last_updated"] for item in data.values())
-        return data, datetime.fromisoformat(latest_update)
+        with open('readme_summaries.json', 'r', encoding='utf-8') as f:
+            summaries = json.load(f)
+            st.success("Loaded existing README summaries")
+            return summaries
+    except FileNotFoundError:
+        st.warning("Generating initial README summaries... This may take a few minutes.")
+        with st.progress(0.0) as progress_bar:
+            summaries = fetch_and_summarize(progress_bar)
+        st.success("Successfully created README summaries!")
+        return summaries
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        return {}, datetime.now()
+        st.error(f"Error: {e}")
+        return {}
 
-st.set_page_config(page_title="OpenBot Chat", page_icon="🔍", layout="centered")
+# Load the pre-processed summaries
+summaries = load_summaries()
 
-st.markdown("""
-    <style>
-        .main-container {
-            max-width: 750px;
-            margin: 0 auto;
-        }
-        .response-card {
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 10px;
-            color: #333;
-        }
-        .reference-text {
-            font-size: 12px;
-            color: #555;
-        }
-        .source-link {
-            color: #0366d6;
-            text-decoration: none;
-            margin-right: 10px;
-        }
-        .source-link:hover {
-            text-decoration: underline;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+# Combine all summaries
+combined_summary_content = "\n\n---\n\n".join(
+    f"Summary from {url}:\n{data['summary']}" 
+    for url, data in summaries.items()
+)
 
+# Initialize session state for chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-readme_data, last_updated = load_readme_data()
-st.sidebar.info(f"Data last updated: {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
+# Header section with CSS
+st.markdown("""
+<style>
+    .main-container { max-width: 750px; margin: 0 auto; }
+    .response-card { background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-top: 10px; color: #333; }
+    .reference-text { font-size: 12px; color: #555; }
+    .source-link { color: #0366d6; text-decoration: none; margin-right: 10px; }
+    .source-link:hover { text-decoration: underline; }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("🔍 OpenBot Chat")
 
-with st.form("chat_form"):
-    user_input = st.text_input("Ask about OpenBot", placeholder="e.g., What is OpenBot?")
-    submit = st.form_submit_button("Ask")
+# User input area
+with st.form(key="user_input_form"):
+    user_input = st.text_input(
+        "Ask a question about OpenBot",
+        placeholder="e.g., What is OpenBot?",
+        key="user_input"
+    )
+    submit_button = st.form_submit_button("Ask")
 
-if submit and user_input:
+# Process user input
+if submit_button and user_input:
+    if not combined_summary_content:
+        st.error("Could not load summarized README contents.")
+        st.stop()
+
     st.session_state.chat_history.append(("user", user_input))
-    
-    documentation = "\n".join([f"[{url}]: {data['summary']}" for url, data in readme_data.items()])
-    prompt = f"""Based on these OpenBot documentation summaries, answer the question. 
-Include [Source: URL] tags to indicate which README files contributed to your answer.
 
-Documentation:
-{documentation}
+    contextual_prompt = f"""Based on the README content below, answer this question: {user_input}
 
-Question: {user_input}"""
+Quote relevant information directly and always include the source URL.
+If information isn't found, say so clearly.
+Format your response with the source link at the end like this:
+[Source: URL]
+
+Content:
+{combined_summary_content}"""
 
     try:
-        time.sleep(2)  # Add delay before API call
-        response = model.start_chat(history=[]).send_message(
-            prompt,
-            generation_config={"temperature": 0.3, "max_output_tokens": 1000}
-        ).text
-        st.session_state.chat_history.append(("assistant", response))
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        st.session_state.chat_history.append(("assistant", response.text))
     except Exception as e:
-        st.error(f"Error generating response: {str(e)}")
+        st.error(f"Error generating response: {e}")
 
+# Display chat history
 for role, message in st.session_state.chat_history:
-    css_class = "user-message" if role == "user" else "bot-message"
-    speaker = "You" if role == "user" else "Assistant"
-    
-    if role == "assistant":
-        message_parts = message.split("[Source")
-        main_message = message_parts[0]
-        sources = " [Source".join(message_parts[1:]) if len(message_parts) > 1 else ""
-        
+    if role == "user":
         st.markdown(f"""
-            <div class="response-card {css_class}">
-                <strong>{speaker}:</strong>
-                <p>{main_message}</p>
-                <div class="source-citation">{sources}</div>
-            </div>
-        """, unsafe_allow_html=True)
+<div class="response-card">
+    <strong>You:</strong>
+    <p>{message}</p>
+</div>
+""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
-            <div class="response-card {css_class}">
-                <strong>{speaker}:</strong>
-                <p>{message}</p>
-            </div>
-        """, unsafe_allow_html=True)
+<div class="response-card">
+    <strong>Assistant:</strong>
+    <p>{message}</p>
+</div>
+""", unsafe_allow_html=True)
