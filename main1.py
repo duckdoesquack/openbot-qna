@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as gen_ai
 import json
+import time
 from datetime import datetime
 
 gen_ai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -73,6 +74,7 @@ Documentation:
 Question: {user_input}"""
 
     try:
+        time.sleep(2)  # Add delay before API call
         response = model.start_chat(history=[]).send_message(
             prompt,
             generation_config={"temperature": 0.3, "max_output_tokens": 1000}
