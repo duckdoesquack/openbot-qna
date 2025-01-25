@@ -19,25 +19,33 @@ def load_readme_data():
 st.set_page_config(page_title="OpenBot Chat", page_icon="🔍", layout="centered")
 
 st.markdown("""
-<style>
-    .response-card {
-        background-color: #f9f9f9;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-    }
-    .user-message { background-color: #e3f2fd; }
-    .bot-message { background-color: #f5f5f5; }
-    .source-citation {
-        font-size: 0.85em;
-        color: #666;
-        border-top: 1px solid #eee;
-        margin-top: 10px;
-        padding-top: 5px;
-    }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+        .main-container {
+            max-width: 750px;
+            margin: 0 auto;
+        }
+        .response-card {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #333;
+        }
+        .reference-text {
+            font-size: 12px;
+            color: #555;
+        }
+        .source-link {
+            color: #0366d6;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        .source-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
