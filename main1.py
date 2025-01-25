@@ -27,7 +27,7 @@ def get_model_response(prompt):
             time.sleep(2)
             raise
         raise
-        
+
 @st.cache_resource
 def load_summaries():
     try:
