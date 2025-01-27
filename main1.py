@@ -49,13 +49,15 @@ if "chat_history" not in st.session_state:
 # Load the pre-processed summaries
 summaries = load_summaries()
 
-# Combine all summaries
-combined_summary_content = "\n\n---\n\n".join(
-    f"Summary from {url}:\n{data['summary']}" 
-    for url, data in summaries.items()
-)
+# Combine all summaries with proper source tracking
+combined_summary_content = []
+for url, data in summaries.items():
+    combined_summary_content.append({
+        'url': url,
+        'summary': data['summary']
+    })
 
-# Header and CSS (keep your existing CSS)
+# Header and CSS
 st.markdown("""
     <style>
         .main-container {
@@ -73,14 +75,22 @@ st.markdown("""
         .reference-text {
             font-size: 12px;
             color: #555;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
         }
         .source-link {
             color: #0366d6;
             text-decoration: none;
             margin-right: 10px;
+            display: inline-block;
+            padding: 2px 6px;
+            background-color: #f1f8ff;
+            border-radius: 3px;
         }
         .source-link:hover {
             text-decoration: underline;
+            background-color: #e1f0ff;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -108,19 +118,32 @@ if submit_button and user_input:
     # Create prompt with pre-processed content
     contextual_prompt = f"""Based on the following summarized README content, please provide a detailed answer to the question:
 
-{combined_summary_content}
+{[f"Content from {item['url']}:\n{item['summary']}" for item in combined_summary_content]}
 
 Question: {user_input}
 
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
+Please provide a comprehensive answer and list the source URLs at the end of your response, prefixed with 'Sources:'."""
 
     try:
         response = model.start_chat(history=[]).send_message(contextual_prompt)
-        st.session_state.chat_history.append(("assistant", response.text))
+        
+        # Extract the main response and sources
+        response_text = response.text
+        sources = []
+        if 'Sources:' in response_text:
+            main_response, sources_text = response_text.split('Sources:', 1)
+            sources = [url.strip() for url in sources_text.split('\n') if url.strip()]
+            response_text = main_response.strip()
+        
+        # Store the response with sources
+        st.session_state.chat_history.append(("assistant", {
+            "text": response_text,
+            "sources": sources
+        }))
     except Exception as e:
         st.error(f"Error generating response: {e}")
 
-# Display chat history
+# Display chat history with proper source formatting
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
@@ -130,9 +153,29 @@ for role, message in st.session_state.chat_history:
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-            <div class="response-card">
-                <strong>Assistant:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
+        # Handle the new message format with sources
+        if isinstance(message, dict):
+            response_html = f"""
+                <div class="response-card">
+                    <strong>Assistant:</strong>
+                    <p>{message['text']}</p>
+                    """
+            if message['sources']:
+                response_html += """
+                    <div class="reference-text">
+                        <strong>Sources:</strong><br>
+                        """
+                for source in message['sources']:
+                    if source.startswith('http'):
+                        response_html += f'<a href="{source}" class="source-link" target="_blank">{source.split("/")[-1]}</a>'
+                response_html += "</div>"
+            response_html += "</div>"
+            st.markdown(response_html, unsafe_allow_html=True)
+        else:
+            # Fallback for old format messages
+            st.markdown(f"""
+                <div class="response-card">
+                    <strong>Assistant:</strong>
+                    <p>{message}</p>
+                </div>
+                """, unsafe_allow_html=True)
