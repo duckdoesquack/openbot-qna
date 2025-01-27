@@ -1,0 +1,27 @@
+name: Daily README Processing
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Runs at 2 AM UTC every day
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  process_readmes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run the README processing script
+        run: |
+          python scripts/process_readmes.py
