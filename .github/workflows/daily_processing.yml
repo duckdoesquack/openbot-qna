@@ -1,27 +1,27 @@
-name: Daily README Processing
+name: Daily JSON Processing
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Runs at 2 AM UTC every day
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '0 0 * * *'  # Runs at midnight UTC every night
+  workflow_dispatch:  # Allows manual triggering via GitHub UI
 
 jobs:
-  process_readmes:
-    runs-on: ubuntu-latest
+  process_json:
+    runs-on: ubuntu-latest  # The environment the workflow will run in
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2  # Checks out your repository so the script can run
 
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: '3.8'  # You can specify the version of Python you need
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r requirements.txt  # Installs any dependencies your script needs
 
-      - name: Run the README processing script
+      - name: Run the JSON processing script
         run: |
-          python scripts/process_readmes.py
+          python update_json.py  # The script that updates or processes your JSON data
