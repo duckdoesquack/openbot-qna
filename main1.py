@@ -3,7 +3,15 @@ import json
 import os
 from dotenv import load_dotenv
 import google.generativeai as gen_ai
+from sqlalchemy import create_engine
 
+# Function to get summaries from the database
+def get_summaries_from_db():
+    engine = create_engine(os.getenv("DATABASE_URL"))
+    with engine.connect() as connection:
+        result = connection.execute("SELECT * FROM readme_summaries")
+        summaries = result.fetchall()
+    return summaries
 # Load environment variables
 load_dotenv()
 
@@ -48,14 +56,6 @@ if "chat_history" not in st.session_state:
 
 # Load the pre-processed summaries
 summaries = load_summaries()
-
-# Combine all summaries with proper source tracking
-combined_summary_content = []
-for url, data in summaries.items():
-    combined_summary_content.append({
-        'url': url,
-        'summary': data['summary']
-    })
 
 # Header and CSS
 st.markdown("""
