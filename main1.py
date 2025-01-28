@@ -29,6 +29,21 @@ def load_preprocessed_summaries():
         st.error(f"Error loading preprocessed summaries: {e}")
         return {}
 
+def clean_response(response_text):
+    unwanted_phrases = [
+        "This question cannot be answered",
+        "No information was found",
+    ]
+    
+    for phrase in unwanted_phrases:
+        if phrase in response_text:
+            response_text = response_text.replace(phrase, "")
+    
+    return response_text
+
+# Clean the final response
+final_response = clean_response(final_response)
+
 # Load the summarized content
 summarized_readme_contents = load_preprocessed_summaries()
 
