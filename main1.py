@@ -1,33 +1,46 @@
+import json
 import os
 import streamlit as st
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
 import google.generativeai as gen_ai
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Function to get summaries from the database
-def get_summaries_from_db():
-    engine = create_engine(os.getenv("DATABASE_URL"))
-    with engine.connect() as connection:
-        result = connection.execute("SELECT * FROM readme_summaries")
-        summaries = result.fetchall()
-    return summaries
-
 # Configure Streamlit page settings
-st.set_page_config(page_title="OpenBot Chat", page_icon="🔍", layout="centered")
+st.set_page_config(
+    page_title="OpenBot Chat",
+    page_icon="🔍",
+    layout="centered",
+)
 
-# Configure Gemini AI
+# Set up the Generative AI model
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-# Initialize session state for chat history
+# Load preprocessed summarized README content
+@st.cache_resource
+def load_preprocessed_summaries():
+    try:
+        with open('summarized_readmes.json', 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        st.error(f"Error loading preprocessed summaries: {e}")
+        return {}
+
+# Load the summarized content
+summarized_readme_contents = load_preprocessed_summaries()
+
+# Combine all the summarized content into one string
+combined_summary_content = "\n\n---\n\n".join([f"Summary from {url}:\n{summary}"
+                                                  for url, summary in summarized_readme_contents.items()])
+
+# Initialize session state for chat history if not already present
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Header section with CSS
+# Header section with CSS for formatting the chat
 st.markdown("""
     <style>
         .main-container {
@@ -57,28 +70,35 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Title of the Streamlit app
 st.title("🔍 OpenBot Chat")
 
-# User input area
+# Checkbox for debugging and displaying the combined summary content
+if st.checkbox("Show Summarized README Content"):
+    st.text_area("Combined Summarized README Content", combined_summary_content, height=200)
+
+# User input area in the form
 with st.form(key="user_input_form"):
-    user_input = st.text_input("Ask a question about OpenBot", placeholder="e.g., What is OpenBot?", key="user_input")
+    user_input = st.text_input(
+        "Ask a question about OpenBot",
+        placeholder="e.g., What is OpenBot?",
+        key="user_input"
+    )
     submit_button = st.form_submit_button("Ask")
 
-# Process user input
+# Process user input and generate response
 if submit_button and user_input:
-    # Get the summarized content from the database
-    summarized_readme_contents = get_summaries_from_db()
-    
-    if not summarized_readme_contents:
-        st.error("Could not load summarized README contents from the database.")
+    # Check if summarized content is loaded
+    if not combined_summary_content:
+        st.error("Could not load summarized README contents.")
         st.stop()
 
-    # Save user input to chat history
+    # Save user input to the chat history
     st.session_state.chat_history.append(("user", user_input))
 
-    # Split the summarized content into chunks if necessary
-    CHUNK_SIZE = 15000  # Adjust chunk size to fit within token limits
-    readme_chunks = [content[1] for content in summarized_readme_contents]  # Assuming the second item in tuple is the summary content
+    # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
+    CHUNK_SIZE = 15000  # Adjust chunk size as needed to fit within token limits
+    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
 
     responses = []
     for chunk in readme_chunks:
@@ -91,17 +111,18 @@ Question: {user_input}
 Please provide a comprehensive answer and cite which README file(s) the information comes from."""
         
         try:
+            # Get the response from the AI model
             response = model.start_chat(history=[]).send_message(contextual_prompt)
             responses.append(response.text)
         except Exception as e:
             st.error(f"Error generating response for a chunk: {e}")
             continue
 
-    # Combine the responses into a single reply
+    # Combine the responses from each chunk into a final response
     final_response = "\n\n---\n\n".join(responses)
     st.session_state.chat_history.append(("assistant", final_response))
 
-# Display chat history
+# Display chat history (user and assistant messages)
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
