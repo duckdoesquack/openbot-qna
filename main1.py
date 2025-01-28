@@ -24,8 +24,6 @@ def clean_response(response_text):
     unwanted_phrases = [
         "The provided README files do not contain instructions",
         "No information was found",
-        "This question cannot be answered from the provided README files.",
-        "This question cannot be answered from the provided context.",
     ]
     
     for phrase in unwanted_phrases:
@@ -33,6 +31,33 @@ def clean_response(response_text):
             response_text = response_text.replace(phrase, "")
     
     return response_text
+
+# Function to chunk the text based on logical sections and token limit
+def chunk_text(text, max_chunk_size=1500):
+    """Chunk the text into manageable pieces, ensuring each chunk fits within the token limit."""
+    # Split the content into paragraphs or sections (assuming paragraphs are separated by newline characters)
+    paragraphs = text.split('\n')
+    
+    chunks = []
+    current_chunk = ""
+    
+    for paragraph in paragraphs:
+        # If adding this paragraph would exceed the max size, start a new chunk
+        if len(current_chunk) + len(paragraph) + 1 > max_chunk_size:
+            chunks.append(current_chunk)
+            current_chunk = paragraph  # Start a new chunk with the current paragraph
+        else:
+            # Otherwise, add this paragraph to the current chunk
+            if current_chunk:
+                current_chunk += "\n" + paragraph
+            else:
+                current_chunk = paragraph
+
+    # Add the final chunk
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
 
 # Load preprocessed summarized README content
 @st.cache_resource
@@ -112,18 +137,17 @@ if submit_button and user_input:
     st.session_state.chat_history.append(("user", user_input))
 
     # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
-    CHUNK_SIZE = 15000  # Adjust chunk size to fit within token limits
-    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
+    CHUNK_SIZE = 1500  # Adjust chunk size to fit within token limits
+    readme_chunks = chunk_text(combined_summary_content, CHUNK_SIZE)
 
     responses = []
     for chunk in readme_chunks:
         # Generate the prompt for each chunk
         contextual_prompt = f"""
         Based on the following summarized README content chunk, please provide a detailed answer to the question. 
-        - Always include relevant information.
-        - If you find the answer in the content, provide it along with the source URL.
-        - Do not say "No information was found" if the information exists, and always cite the relevant README link.
-        If the information from the README matches the question, include that source in your response.
+        - If relevant information is available, include that along with the source URL(s).
+        - Never say "This information cannot be found in the provided READMEs" unless it's absolutely clear that the information is not in the provided content.
+        - Always try to provide a relevant answer based on the content, and if necessary, break down your answer into smaller details and reference the corresponding README file(s).
 
         {chunk}
 
