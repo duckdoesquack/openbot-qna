@@ -22,7 +22,7 @@ model = gen_ai.GenerativeModel('gemini-pro')
 # Function to clean the response and remove unwanted phrases
 def clean_response(response_text):
     unwanted_phrases = [
-        "This question cannot be answered",
+        "The provided README files do not contain instructions",
         "No information was found",
     ]
     
@@ -110,21 +110,24 @@ if submit_button and user_input:
     st.session_state.chat_history.append(("user", user_input))
 
     # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
-    CHUNK_SIZE = 15000  # Adjust chunk size as needed to fit within token limits
+    CHUNK_SIZE = 15000  # Adjust chunk size to fit within token limits
     readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
 
     responses = []
     for chunk in readme_chunks:
+        # Generate the prompt for each chunk
         contextual_prompt = f"""
-Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information from the README matches the question, include that source in your response. 
+        Based on the following summarized README content chunk, please provide a detailed answer to the question. 
+        - Always include relevant information.
+        - If you find the answer in the content, provide it along with the source URL.
+        - Do not say "No information was found" if the information exists, and always cite the relevant README link.
+        If the information from the README matches the question, include that source in your response.
 
-Do not include phrases like "No information was found" if there is relevant information or source is available. Always include the source URL(s) if relevant information is provided.
+        {chunk}
 
-{chunk}
+        Question: {user_input}
 
-Question: {user_input}
-
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
+        Please provide a comprehensive answer and cite which README file(s) the information comes from."""
         
         try:
             # Get the response from the AI model
