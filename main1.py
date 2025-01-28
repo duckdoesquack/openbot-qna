@@ -25,6 +25,7 @@ def clean_response(response_text):
         "The provided README files do not contain instructions",
         "No information was found",
         "This question cannot be answered from the provided README files.",
+        "This question cannot be answered from the provided context.",
     ]
     
     for phrase in unwanted_phrases:
