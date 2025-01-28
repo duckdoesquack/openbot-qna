@@ -115,7 +115,10 @@ if submit_button and user_input:
 
     responses = []
     for chunk in readme_chunks:
-        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information from the README matches the question, include that source in your response. Do not include statements like "This question cannot be answered" or "No information was found." Only provide relevant details from the README files.
+        contextual_prompt = f"""
+Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information from the README matches the question, include that source in your response. 
+
+Do not include phrases like "No information was found" if there is relevant information or source is available. Always include the source URL(s) if relevant information is provided.
 
 {chunk}
 
