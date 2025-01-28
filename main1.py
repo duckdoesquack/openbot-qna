@@ -19,6 +19,19 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
+# Function to clean the response and remove unwanted phrases
+def clean_response(response_text):
+    unwanted_phrases = [
+        "This question cannot be answered",
+        "No information was found",
+    ]
+    
+    for phrase in unwanted_phrases:
+        if phrase in response_text:
+            response_text = response_text.replace(phrase, "")
+    
+    return response_text
+
 # Load preprocessed summarized README content
 @st.cache_resource
 def load_preprocessed_summaries():
@@ -126,19 +139,6 @@ Please provide a comprehensive answer and cite which README file(s) the informat
 
     # Save the cleaned response to chat history
     st.session_state.chat_history.append(("assistant", final_response))
-
-# Function to clean the response and remove unwanted phrases
-def clean_response(response_text):
-    unwanted_phrases = [
-        "This question cannot be answered",
-        "No information was found",
-    ]
-    
-    for phrase in unwanted_phrases:
-        if phrase in response_text:
-            response_text = response_text.replace(phrase, "")
-    
-    return response_text
 
 # Display chat history (user and assistant messages)
 for role, message in st.session_state.chat_history:
