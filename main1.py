@@ -122,6 +122,10 @@ Please provide a comprehensive answer and cite which README file(s) the informat
     final_response = "\n\n---\n\n".join(responses)
     st.session_state.chat_history.append(("assistant", final_response))
 
+# Ensure chat history exists in session_state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
 # Display chat history (user and assistant messages)
 for role, message in st.session_state.chat_history:
     if role == "user":
@@ -138,3 +142,4 @@ for role, message in st.session_state.chat_history:
                 <p>{message}</p>
             </div>
             """, unsafe_allow_html=True)
+
