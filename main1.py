@@ -102,14 +102,16 @@ if submit_button and user_input:
 
     responses = []
     for chunk in readme_chunks:
-        contextual_prompt = f"""Using only the information in the following summarized README content, answer the question in detail. 
+        contextual_prompt = f"""
+Using only the information in the following summarized README content, answer the question in detail. 
 Do not add extra disclaimers. If the answer is unknown, say 'I don't have enough information on that topic.'
 
 {chunk}
 
 Question: {user_input}
 
-Provide a direct, informative response and cite which README file(s) the information comes from."""
+Provide a direct, informative response and cite which README file(s) the information comes from.
+"""
  If the information comes from a specific README, include that source in your response:
 
 {chunk}
