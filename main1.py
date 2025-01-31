@@ -112,6 +112,13 @@ Question: {user_input}
 Provide a direct, informative response and cite which README file(s) the information comes from.
 """
 
+    try:
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        responses.append(response.text)
+    except Exception as e:
+        st.error(f"Error generating response for a chunk: {e}")
+        continue
+        
     # Combine the responses from each chunk into a final response
     final_response = "\n\n---\n\n".join(responses)
     st.session_state.chat_history.append(("assistant", final_response))
