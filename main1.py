@@ -29,6 +29,13 @@ def load_preprocessed_summaries():
         st.error(f"Error loading preprocessed summaries: {e}")
         return {}
 
+#debug
+summarized_readme_contents = load_preprocessed_summaries()
+st.write("Debug - Content loaded:", bool(summarized_readme_contents))
+st.write("Debug - Number of sources:", len(summarized_readme_contents))
+if summarized_readme_contents:
+    st.write("Debug - Available sources:", list(summarized_readme_contents.keys()))
+
 # Load the summarized content
 summarized_readme_contents = load_preprocessed_summaries()
 
@@ -86,62 +93,75 @@ with st.form(key="user_input_form"):
     )
     submit_button = st.form_submit_button("Ask")
 
+import json
+import os
+import re
+import streamlit as st
+import google.generativeai as gen_ai
+from dotenv import load_dotenv
+
 def generate_improved_prompt(content_chunk, user_question):
-    return f"""You are an expert assistant for OpenBot. Answer as directly as possible. 
-If the information exists in the content below, provide it in a clear, step-by-step format.
-Only say you don't have enough information if the content truly doesn't contain any relevant details.
+    return f"""You are an expert assistant for OpenBot. When answering, follow these rules:
+
+1. Always check the provided content thoroughly for ANY relevant information
+2. If you find information, provide it in a clear format
+3. Include the URL/source where you found the information
+4. Never say there's no information if you find even partially relevant details
 
 Content: {content_chunk}
 
 Question: {user_question}
 
-Important: If you find ANY relevant information, include it in your response."""
+Format your response like this if you find information:
+[Main answer with details]
+Source: [source URL where information was found]
+
+Only say you don't have information if there's absolutely nothing relevant in the content."""
 
 def clean_response(response):
-    """Clean up the response while preserving valid information"""
-    # Don't remove content if it contains actual information
-    if any(indicator in response.lower() for indicator in ['step', 'you can', 'need to', 'require', 'follow']):
-        # Only clean up introductory phrases
-        cleanup_patterns = {
-            r"^Based on .*?, ": "",
-            r"^According to .*?, ": "",
-            r"^The documentation shows that ": "",
-            r"^I can tell you that ": "",
-            r"^Let me explain ": "",
-        }
+    """Clean up the response while preserving source information"""
+    # Check if response contains actual information
+    if len(response.strip()) < 50 and "apologize" in response.lower():
+        return None
         
-        cleaned = response
-        for pattern, replacement in cleanup_patterns.items():
-            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
-        
-        return cleaned.strip()
+    # Preserve source information
+    source_match = re.search(r'Source: (.*?)(?:\n|$)', response)
+    source = source_match.group(1) if source_match else None
     
-    # If no clear information indicators found, check for explicit "no information" statements
-    if any(phrase in response.lower() for phrase in [
-        "cannot be answered",
-        "don't have enough information",
-        "cannot provide",
-        "no information available"
-    ]):
-        return "I apologize, but I don't have enough information about that specific topic in my current knowledge base."
+    # Clean the main content
+    content = response
+    if source:
+        content = response.replace(f"Source: {source}", "").strip()
     
-    # If response exists but doesn't match above patterns, preserve it
-    return response.strip()
+    # Remove common disclaimers
+    cleanup_patterns = {
+        r"^Based on .*?, ": "",
+        r"^According to .*?, ": "",
+        r"^The documentation shows that ": "",
+        r"^I can tell you that ": "",
+        r"^Let me explain ": "",
+    }
+    
+    for pattern, replacement in cleanup_patterns.items():
+        content = re.sub(pattern, content, flags=re.IGNORECASE)
+    
+    # Return both content and source
+    return {
+        'content': content.strip(),
+        'source': source
+    } if content.strip() else None
 
 def process_chunk_response(chunk, user_input):
-    """Process a single chunk and return its cleaned response"""
+    """Process a single chunk and return its cleaned response with source"""
     try:
         improved_prompt = generate_improved_prompt(chunk, user_input)
         response = model.start_chat(history=[]).send_message(improved_prompt)
-        cleaned_response = clean_response(response.text)
-        
-        # Only return the response if it contains actual information
-        if cleaned_response and not cleaned_response.startswith("I apologize"):
-            return cleaned_response
-        return None
+        return clean_response(response.text)
     except Exception as e:
         st.error(f"Error processing chunk: {e}")
         return None
+
+# [Previous configurations remain the same...]
 
 # Process user input and generate response
 if submit_button and user_input:
@@ -163,14 +183,27 @@ if submit_button and user_input:
         if response:
             valid_responses.append(response)
 
-    # Combine valid responses or provide fallback
+    # Combine responses and format with sources
     if valid_responses:
-        final_response = " ".join(valid_responses)
+        # Combine unique content and collect sources
+        combined_content = []
+        sources = set()
+        
+        for response in valid_responses:
+            if response['content']:
+                combined_content.append(response['content'])
+            if response['source']:
+                sources.add(response['source'])
+        
+        final_response = "\n\n".join(combined_content)
+        if sources:
+            final_response += "\n\nSources:\n" + "\n".join(f"- {source}" for source in sources)
     else:
         final_response = "I apologize, but I don't have enough information about that specific topic in my current knowledge base."
     
     st.session_state.chat_history.append(("assistant", final_response))
-# Display chat history (user and assistant messages)
+
+# Display chat history with improved formatting
 for role, message in st.session_state.chat_history:
     if role == "user":
         st.markdown(f"""
@@ -180,9 +213,15 @@ for role, message in st.session_state.chat_history:
             </div>
             """, unsafe_allow_html=True)
     else:
+        # Split message into content and sources for better formatting
+        parts = message.split("\n\nSources:")
+        content = parts[0]
+        sources = parts[1] if len(parts) > 1 else ""
+        
         st.markdown(f"""
             <div class="response-card">
                 <strong>Gemini-Pro:</strong>
-                <p>{message}</p>
+                <p>{content}</p>
+                {f'<p class="reference-text">{sources}</p>' if sources else ''}
             </div>
             """, unsafe_allow_html=True)
