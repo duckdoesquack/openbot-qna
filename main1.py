@@ -113,10 +113,10 @@ with st.form(key="user_input_form"):
 def generate_response(user_input, chunk):
     """Generate and validate response for a single chunk"""
     contextual_prompt = f"""Based on the following summarized README content chunk, please answer the question.
-If the information is not present in the provided content, respond with:
+If the information is not present in the provided content, respond with EXACTLY:
 "I apologize, but I cannot find specific information about [topic] in the README files. If you're interested in this topic, you may want to check the project's discussion forums or issue tracker for more details."
 
-Replace [topic] with the specific topic from the question.
+Replace [topic] with the specific topic from the question. Do not provide multiple variations of this message.
 
 If you find relevant information, include specific citations to the README files:
 
@@ -131,14 +131,7 @@ Question: {user_input}"""
     except Exception as e:
         return False, f"Error generating response: {str(e)}"
 
-    try:
-        response = model.start_chat(history=[]).send_message(contextual_prompt)
-        is_valid, cleaned_response = validate_response(response.text)
-        return is_valid, cleaned_response
-    except Exception as e:
-        return False, f"Error generating response: {str(e)}"
-
-# Process user input and generate response
+# In the main processing section, replace the response handling with:
 if submit_button and user_input:
     if not combined_summary_content:
         st.error("No README content available for processing.")
@@ -156,15 +149,16 @@ if submit_button and user_input:
     valid_responses = []
     for chunk in readme_chunks:
         is_valid, response = generate_response(user_input, chunk)
-        if is_valid and "cannot find information" not in response.lower():
-            valid_responses.append(response)
+        if is_valid:
+            if "cannot find" not in response.lower():
+                valid_responses.append(response)
+            elif not valid_responses:  # Only add "cannot find" response if we have no valid responses
+                valid_responses = [response]
+                break  # No need to process more chunks if we're just going to say we can't find anything
 
-    # Prepare final response
-    if valid_responses:
-        final_response = "\n\n".join(valid_responses)
-    else:
-        final_response = "I cannot find information about this topic in the README files."
-
+    # Use only the first "cannot find" response if that's all we have
+    final_response = "\n\n".join(valid_responses[:1] if "cannot find" in valid_responses[0].lower() else valid_responses)
+    
     st.session_state.chat_history.append(("assistant", final_response))
 
 # Display chat history
