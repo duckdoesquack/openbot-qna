@@ -113,14 +113,23 @@ with st.form(key="user_input_form"):
 def generate_response(user_input, chunk):
     """Generate and validate response for a single chunk"""
     contextual_prompt = f"""Based on the following summarized README content chunk, please answer the question.
-If the information is not present in the provided content, respond with ONLY:
-"I cannot find information about this topic in the README files."
+If the information is not present in the provided content, respond with:
+"I apologize, but I cannot find specific information about [topic] in the README files. If you're interested in this topic, you may want to check the project's discussion forums or issue tracker for more details."
+
+Replace [topic] with the specific topic from the question.
 
 If you find relevant information, include specific citations to the README files:
 
 {chunk}
 
 Question: {user_input}"""
+
+    try:
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        is_valid, cleaned_response = validate_response(response.text)
+        return is_valid, cleaned_response
+    except Exception as e:
+        return False, f"Error generating response: {str(e)}"
 
     try:
         response = model.start_chat(history=[]).send_message(contextual_prompt)
