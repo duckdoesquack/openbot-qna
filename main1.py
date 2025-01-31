@@ -98,27 +98,26 @@ if submit_button and user_input:
 
     # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
     CHUNK_SIZE = 15000  # Adjust chunk size as needed to fit within token limits
-readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
+    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
 
-responses = []
-for chunk in readme_chunks:
-    contextual_prompt = f"""Using only the information in the following summarized README content, answer the question in detail. 
-Do not add extra disclaimers. If the answer is unknown, say 'I don't have enough information on that topic.'
+    responses = []
+    for chunk in readme_chunks:
+        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information comes from a specific README, include that source in your response:
 
 {chunk}
 
 Question: {user_input}
 
-Provide a direct, informative response and cite which README file(s) the information comes from.
-"""
-
-    try:
-        response = model.start_chat(history=[]).send_message(contextual_prompt)
-        responses.append(response.text)
-    except Exception as e:
-        st.error(f"Error generating response for a chunk: {e}")
-        continue
+Please provide a comprehensive answer and cite which README file(s) the information comes from."""
         
+        try:
+            # Get the response from the AI model
+            response = model.start_chat(history=[]).send_message(contextual_prompt)
+            responses.append(response.text)
+        except Exception as e:
+            st.error(f"Error generating response for a chunk: {e}")
+            continue
+
     # Combine the responses from each chunk into a final response
     final_response = "\n\n---\n\n".join(responses)
     st.session_state.chat_history.append(("assistant", final_response))
