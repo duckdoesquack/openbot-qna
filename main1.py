@@ -19,14 +19,43 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-# Load preprocessed summarized README content
+def validate_response(response_text):
+    """
+    Validate the response for contradictions and empty content
+    Returns: (bool, str) - (is_valid, cleaned_response)
+    """
+    if not response_text or response_text.isspace():
+        return False, "No valid response generated."
+    
+    # Check for contradictory statements
+    contradictions = [
+        ("provided" in response_text.lower() and "not provided" in response_text.lower()),
+        ("contains" in response_text.lower() and "does not contain" in response_text.lower()),
+        ("found" in response_text.lower() and "not found" in response_text.lower())
+    ]
+    
+    if any(contradictions):
+        return False, "Response contained contradictions. Please try rephrasing your question."
+    
+    return True, response_text
+
 @st.cache_resource
 def load_preprocessed_summaries():
+    """Load and validate preprocessed README summaries"""
     try:
         with open('summarized_readmes.json', 'r') as f:
-            return json.load(f)
+            summaries = json.load(f)
+            if not summaries:
+                raise ValueError("Summarized README file is empty")
+            return summaries
+    except FileNotFoundError:
+        st.error("Could not find the summarized README file. Please ensure it exists.")
+        return {}
+    except json.JSONDecodeError:
+        st.error("Invalid JSON format in the summarized README file.")
+        return {}
     except Exception as e:
-        st.error(f"Error loading preprocessed summaries: {e}")
+        st.error(f"Unexpected error loading summaries: {e}")
         return {}
 
 # Load the summarized content
@@ -34,19 +63,16 @@ summarized_readme_contents = load_preprocessed_summaries()
 
 # Combine all the summarized content into one string
 combined_summary_content = "\n\n---\n\n".join([f"Summary from {url}:\n{summary}"
-                                                  for url, summary in summarized_readme_contents.items()])
+                                              for url, summary in summarized_readme_contents.items()])
 
-# Initialize session state for chat history if not already present
+# Initialize session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Header section with CSS for formatting the chat
+# Styling
 st.markdown("""
     <style>
-        .main-container {
-            max-width: 750px;
-            margin: 0 auto;
-        }
+        .main-container { max-width: 750px; margin: 0 auto; }
         .response-card {
             background-color: #f9f9f9;
             border: 1px solid #ddd;
@@ -55,29 +81,27 @@ st.markdown("""
             margin-top: 10px;
             color: #333;
         }
-        .reference-text {
-            font-size: 12px;
-            color: #555;
+        .error-card {
+            background-color: #ffe6e6;
+            border: 1px solid #ff9999;
         }
+        .reference-text { font-size: 12px; color: #555; }
         .source-link {
             color: #0366d6;
             text-decoration: none;
             margin-right: 10px;
         }
-        .source-link:hover {
-            text-decoration: underline;
-        }
+        .source-link:hover { text-decoration: underline; }
     </style>
     """, unsafe_allow_html=True)
 
-# Title of the Streamlit app
 st.title("🔍 OpenBot Chat")
 
-# Checkbox for debugging and displaying the combined summary content
+# Debug checkbox
 if st.checkbox("Show Summarized README Content"):
     st.text_area("Combined Summarized README Content", combined_summary_content, height=200)
 
-# User input area in the form
+# User input form
 with st.form(key="user_input_form"):
     user_input = st.text_input(
         "Ask a question about OpenBot",
@@ -86,55 +110,63 @@ with st.form(key="user_input_form"):
     )
     submit_button = st.form_submit_button("Ask")
 
-# Process user input and generate response
-if submit_button and user_input:
-    # Check if summarized content is loaded
-    if not combined_summary_content:
-        st.error("Could not load summarized README contents.")
-        st.stop()
+def generate_response(user_input, chunk):
+    """Generate and validate response for a single chunk"""
+    contextual_prompt = f"""Based on the following summarized README content chunk, please answer the question.
+If the information is not present in the provided content, respond with ONLY:
+"I cannot find information about this topic in the README files."
 
-    # Save user input to the chat history
-    st.session_state.chat_history.append(("user", user_input))
-
-    # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
-    CHUNK_SIZE = 15000  # Adjust chunk size as needed to fit within token limits
-    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
-
-    responses = []
-    for chunk in readme_chunks:
-        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information comes from a specific README, include that source in your response:
+If you find relevant information, include specific citations to the README files:
 
 {chunk}
 
-Question: {user_input}
+Question: {user_input}"""
 
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
-        
-        try:
-            # Get the response from the AI model
-            response = model.start_chat(history=[]).send_message(contextual_prompt)
-            responses.append(response.text)
-        except Exception as e:
-            st.error(f"Error generating response for a chunk: {e}")
-            continue
+    try:
+        response = model.start_chat(history=[]).send_message(contextual_prompt)
+        is_valid, cleaned_response = validate_response(response.text)
+        return is_valid, cleaned_response
+    except Exception as e:
+        return False, f"Error generating response: {str(e)}"
 
-    # Combine the responses from each chunk into a final response
-    final_response = "\n\n---\n\n".join(responses)
+# Process user input and generate response
+if submit_button and user_input:
+    if not combined_summary_content:
+        st.error("No README content available for processing.")
+        st.stop()
+
+    # Save user input
+    st.session_state.chat_history.append(("user", user_input))
+
+    # Split content into chunks
+    CHUNK_SIZE = 15000
+    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] 
+                    for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
+
+    # Process all chunks
+    valid_responses = []
+    for chunk in readme_chunks:
+        is_valid, response = generate_response(user_input, chunk)
+        if is_valid and "cannot find information" not in response.lower():
+            valid_responses.append(response)
+
+    # Prepare final response
+    if valid_responses:
+        final_response = "\n\n".join(valid_responses)
+    else:
+        final_response = "I cannot find information about this topic in the README files."
+
     st.session_state.chat_history.append(("assistant", final_response))
 
-# Display chat history (user and assistant messages)
+# Display chat history
 for role, message in st.session_state.chat_history:
-    if role == "user":
-        st.markdown(f"""
-            <div class="response-card">
-                <strong>You:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-            <div class="response-card">
-                <strong>Gemini-Pro:</strong>
-                <p>{message}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    card_class = "response-card"
+    if "error" in message.lower():
+        card_class += " error-card"
+        
+    st.markdown(f"""
+        <div class="{card_class}">
+            <strong>{'You' if role == 'user' else 'Gemini-Pro'}:</strong>
+            <p>{message}</p>
+        </div>
+        """, unsafe_allow_html=True)
