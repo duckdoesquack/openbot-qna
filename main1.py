@@ -19,6 +19,35 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
+def validate_response(response_text):
+    """
+    Validate the response for contradictions and empty content
+    Returns: (bool, str) - (is_valid, cleaned_response)
+    """
+    if not response_text or response_text.isspace():
+        return False, "No valid response generated."
+    
+    # Split response into sentences
+    sentences = response_text.split('.')
+    
+    # If it's a "cannot find information" response, return it directly
+    if len(sentences) <= 2 and "cannot find information" in response_text.lower():
+        return True, response_text
+        
+    # Remove any contradicting sentences at the end
+    while sentences and any(phrase in sentences[-1].lower() for phrase in 
+        ["not provided", "does not contain", "not found", "cannot find"]):
+        sentences.pop()
+    
+    # Rejoin sentences if we have valid content
+    if sentences:
+        cleaned_response = '. '.join(sentences).strip()
+        if cleaned_response.endswith('.'):
+            return True, cleaned_response + '.'
+        return True, cleaned_response
+        
+    return False, "No valid information found."
+
 @st.cache_resource
 def load_preprocessed_summaries():
     """Load and validate preprocessed README summaries"""
@@ -111,36 +140,7 @@ Question: {user_input}"""
     except Exception as e:
         return False, f"Error generating response: {str(e)}"
 
-def validate_response(response_text):
-    """
-    Validate the response for contradictions and empty content
-    Returns: (bool, str) - (is_valid, cleaned_response)
-    """
-    if not response_text or response_text.isspace():
-        return False, "No valid response generated."
-    
-    # Split response into sentences
-    sentences = response_text.split('.')
-    
-    # If it's a "cannot find information" response, return it directly
-    if len(sentences) <= 2 and "cannot find information" in response_text.lower():
-        return True, response_text
-        
-    # Remove any contradicting sentences at the end
-    while sentences and any(phrase in sentences[-1].lower() for phrase in 
-        ["not provided", "does not contain", "not found", "cannot find"]):
-        sentences.pop()
-    
-    # Rejoin sentences if we have valid content
-    if sentences:
-        cleaned_response = '. '.join(sentences).strip()
-        if cleaned_response.endswith('.'):
-            return True, cleaned_response + '.'
-        return True, cleaned_response
-        
-    return False, "No valid information found."
-
-# In the main processing section:
+# Process user input and generate response
 if submit_button and user_input:
     if not combined_summary_content:
         st.error("No README content available for processing.")
@@ -168,3 +168,16 @@ if submit_button and user_input:
         final_response = "I cannot find information about this topic in the README files."
 
     st.session_state.chat_history.append(("assistant", final_response))
+
+# Display chat history
+for role, message in st.session_state.chat_history:
+    card_class = "response-card"
+    if "error" in message.lower():
+        card_class += " error-card"
+        
+    st.markdown(f"""
+        <div class="{card_class}">
+            <strong>{'You' if role == 'user' else 'Gemini-Pro'}:</strong>
+            <p>{message}</p>
+        </div>
+        """, unsafe_allow_html=True)
