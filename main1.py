@@ -103,7 +103,7 @@ if submit_button and user_input:
     responses = []
     for chunk in readme_chunks:
         contextual_prompt = f"""Using only the information in the following summarized README content, answer the question in detail. 
-Do not add extra disclaimers. If the answer is unknown, say 'I don't have enough information on that topic.'
+Do not add extra disclaimers. If the answer is unknown, say 'I don't have enough information on that topic.':
 
 {chunk}
 
