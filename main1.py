@@ -88,15 +88,47 @@ with st.form(key="user_input_form"):
 
 # Process user input and generate response
 def generate_improved_prompt(content_chunk, user_question):
-    return f"""You are an expert assistant for OpenBot. Using the following README content, 
-answer the user's question concisely and accurately. Only mention source documentation if 
-it's specifically relevant to answer the user's question.
+    return f"""You are an expert assistant for OpenBot. Answer questions naturally as if you're 
+having a conversation. Focus on providing helpful, practical information.
+
+If you can answer the question based on the content below, provide a clear step-by-step response.
+If you cannot answer the question based on the content, simply say "I apologize, but I don't have 
+enough information about that specific topic in my current knowledge base."
 
 Content: {content_chunk}
 
 Question: {user_question}
 
-Provide a clear, direct answer without disclaimers about documentation unless absolutely necessary."""
+Remember:
+- Be direct and practical
+- Give clear steps when possible
+- Don't mention documentation unless citing specific technical details
+- Don't add disclaimers about what you can or cannot find"""
+
+def clean_response(response):
+    """Clean up the response to make it more natural"""
+    # Remove common disclaimers and awkward transitions
+    cleanup_patterns = {
+        r"Based on .*?, ": "",
+        r"According to .*?, ": "",
+        r"The documentation shows .*?: ": "",
+        r"The provided context .*?: ": "",
+        r"I can tell you that ": "",
+        r"Let me explain ": "",
+        r"This question cannot be answered.*": "I apologize, but I don't have enough information about that specific topic in my current knowledge base.",
+        r"I cannot provide.*": "I apologize, but I don't have enough information about that specific topic in my current knowledge base."
+    }
+    
+    cleaned = response
+    for pattern, replacement in cleanup_patterns.items():
+        cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+    
+    # Remove duplicate sentences
+    sentences = cleaned.split('. ')
+    unique_sentences = list(dict.fromkeys(sentences))
+    cleaned = '. '.join(unique_sentences)
+    
+    return cleaned.strip()
 
 # Process user input and generate response
 if submit_button and user_input:
@@ -116,26 +148,20 @@ if submit_button and user_input:
         try:
             improved_prompt = generate_improved_prompt(chunk, user_input)
             response = model.start_chat(history=[]).send_message(improved_prompt)
-            responses.append(response.text)
+            cleaned_response = clean_response(response.text)
+            if cleaned_response and not cleaned_response.isspace():
+                responses.append(cleaned_response)
         except Exception as e:
             st.error(f"Error generating response: {e}")
             continue
 
-    # Combine responses and clean up any redundant documentation mentions
-    final_response = " ".join(responses)
+    # Combine and clean the final response
+    if responses:
+        final_response = " ".join(responses)
+        final_response = clean_response(final_response)  # Clean one final time
+    else:
+        final_response = "I apologize, but I don't have enough information about that specific topic in my current knowledge base."
     
-    # Clean up common disclaimer patterns
-    disclaimers = [
-        "The provided documentation does not contain",
-        "Based on the documentation,",
-        "According to the README,",
-        "The documentation shows",
-    ]
-    
-    for disclaimer in disclaimers:
-        final_response = final_response.replace(disclaimer, "")
-    
-    final_response = final_response.strip()
     st.session_state.chat_history.append(("assistant", final_response))
 
 # Display chat history (user and assistant messages)
