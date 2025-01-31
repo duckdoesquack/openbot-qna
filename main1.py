@@ -19,26 +19,6 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 gen_ai.configure(api_key=GOOGLE_API_KEY)
 model = gen_ai.GenerativeModel('gemini-pro')
 
-def validate_response(response_text):
-    """
-    Validate the response for contradictions and empty content
-    Returns: (bool, str) - (is_valid, cleaned_response)
-    """
-    if not response_text or response_text.isspace():
-        return False, "No valid response generated."
-    
-    # Check for contradictory statements
-    contradictions = [
-        ("provided" in response_text.lower() and "not provided" in response_text.lower()),
-        ("contains" in response_text.lower() and "does not contain" in response_text.lower()),
-        ("found" in response_text.lower() and "not found" in response_text.lower())
-    ]
-    
-    if any(contradictions):
-        return False, "Response contained contradictions. Please try rephrasing your question."
-    
-    return True, response_text
-
 @st.cache_resource
 def load_preprocessed_summaries():
     """Load and validate preprocessed README summaries"""
@@ -113,12 +93,12 @@ with st.form(key="user_input_form"):
 def generate_response(user_input, chunk):
     """Generate and validate response for a single chunk"""
     contextual_prompt = f"""Based on the following summarized README content chunk, please answer the question.
-If the information is not present in the provided content, respond with EXACTLY:
-"I apologize, but I cannot find specific information about [topic] in the README files. If you're interested in this topic, you may want to check the project's discussion forums or issue tracker for more details."
+If you find ANY relevant information in the content, provide it and cite the specific README file source.
+Only if you find NO information at all, respond with:
+"I cannot find information about this topic in the README files."
 
-Replace [topic] with the specific topic from the question. Do not provide multiple variations of this message.
-
-If you find relevant information, include specific citations to the README files:
+Important: Do not add disclaimers or contradictions at the end of your response.
+If you provided information from the README, do not then say the information wasn't found.
 
 {chunk}
 
@@ -131,7 +111,36 @@ Question: {user_input}"""
     except Exception as e:
         return False, f"Error generating response: {str(e)}"
 
-# In the main processing section, replace the response handling with:
+def validate_response(response_text):
+    """
+    Validate the response for contradictions and empty content
+    Returns: (bool, str) - (is_valid, cleaned_response)
+    """
+    if not response_text or response_text.isspace():
+        return False, "No valid response generated."
+    
+    # Split response into sentences
+    sentences = response_text.split('.')
+    
+    # If it's a "cannot find information" response, return it directly
+    if len(sentences) <= 2 and "cannot find information" in response_text.lower():
+        return True, response_text
+        
+    # Remove any contradicting sentences at the end
+    while sentences and any(phrase in sentences[-1].lower() for phrase in 
+        ["not provided", "does not contain", "not found", "cannot find"]):
+        sentences.pop()
+    
+    # Rejoin sentences if we have valid content
+    if sentences:
+        cleaned_response = '. '.join(sentences).strip()
+        if cleaned_response.endswith('.'):
+            return True, cleaned_response + '.'
+        return True, cleaned_response
+        
+    return False, "No valid information found."
+
+# In the main processing section:
 if submit_button and user_input:
     if not combined_summary_content:
         st.error("No README content available for processing.")
@@ -149,27 +158,13 @@ if submit_button and user_input:
     valid_responses = []
     for chunk in readme_chunks:
         is_valid, response = generate_response(user_input, chunk)
-        if is_valid:
-            if "cannot find" not in response.lower():
-                valid_responses.append(response)
-            elif not valid_responses:  # Only add "cannot find" response if we have no valid responses
-                valid_responses = [response]
-                break  # No need to process more chunks if we're just going to say we can't find anything
+        if is_valid and "cannot find information" not in response.lower():
+            valid_responses.append(response)
 
-    # Use only the first "cannot find" response if that's all we have
-    final_response = "\n\n".join(valid_responses[:1] if "cannot find" in valid_responses[0].lower() else valid_responses)
-    
+    # Prepare final response
+    if valid_responses:
+        final_response = "\n\n".join(valid_responses)
+    else:
+        final_response = "I cannot find information about this topic in the README files."
+
     st.session_state.chat_history.append(("assistant", final_response))
-
-# Display chat history
-for role, message in st.session_state.chat_history:
-    card_class = "response-card"
-    if "error" in message.lower():
-        card_class += " error-card"
-        
-    st.markdown(f"""
-        <div class="{card_class}">
-            <strong>{'You' if role == 'user' else 'Gemini-Pro'}:</strong>
-            <p>{message}</p>
-        </div>
-        """, unsafe_allow_html=True)
