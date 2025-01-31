@@ -112,7 +112,7 @@ Question: {user_input}
 
 Provide a direct, informative response and cite which README file(s) the information comes from.
 """
- If the information comes from a specific README, include that source in your response:
+ If the information comes from a specific README, include that source in your response
 
 {chunk}
 
