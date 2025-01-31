@@ -87,39 +87,55 @@ with st.form(key="user_input_form"):
     submit_button = st.form_submit_button("Ask")
 
 # Process user input and generate response
+def generate_improved_prompt(content_chunk, user_question):
+    return f"""You are an expert assistant for OpenBot. Using the following README content, 
+answer the user's question concisely and accurately. Only mention source documentation if 
+it's specifically relevant to answer the user's question.
+
+Content: {content_chunk}
+
+Question: {user_question}
+
+Provide a clear, direct answer without disclaimers about documentation unless absolutely necessary."""
+
+# Process user input and generate response
 if submit_button and user_input:
-    # Check if summarized content is loaded
     if not combined_summary_content:
         st.error("Could not load summarized README contents.")
         st.stop()
 
-    # Save user input to the chat history
     st.session_state.chat_history.append(("user", user_input))
 
-    # Split the summarized content into chunks if necessary (to avoid exceeding token limits)
-    CHUNK_SIZE = 15000  # Adjust chunk size as needed to fit within token limits
-    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
+    # Split content into chunks if necessary
+    CHUNK_SIZE = 15000
+    readme_chunks = [combined_summary_content[i:i + CHUNK_SIZE] 
+                    for i in range(0, len(combined_summary_content), CHUNK_SIZE)]
 
     responses = []
     for chunk in readme_chunks:
-        contextual_prompt = f"""Based on the following summarized README content chunk, please provide a detailed answer to the question. If the information comes from a specific README, include that source in your response:
-
-{chunk}
-
-Question: {user_input}
-
-Please provide a comprehensive answer and cite which README file(s) the information comes from."""
-        
         try:
-            # Get the response from the AI model
-            response = model.start_chat(history=[]).send_message(contextual_prompt)
+            improved_prompt = generate_improved_prompt(chunk, user_input)
+            response = model.start_chat(history=[]).send_message(improved_prompt)
             responses.append(response.text)
         except Exception as e:
-            st.error(f"Error generating response for a chunk: {e}")
+            st.error(f"Error generating response: {e}")
             continue
 
-    # Combine the responses from each chunk into a final response
-    final_response = "\n\n---\n\n".join(responses)
+    # Combine responses and clean up any redundant documentation mentions
+    final_response = " ".join(responses)
+    
+    # Clean up common disclaimer patterns
+    disclaimers = [
+        "The provided documentation does not contain",
+        "Based on the documentation,",
+        "According to the README,",
+        "The documentation shows",
+    ]
+    
+    for disclaimer in disclaimers:
+        final_response = final_response.replace(disclaimer, "")
+    
+    final_response = final_response.strip()
     st.session_state.chat_history.append(("assistant", final_response))
 
 # Display chat history (user and assistant messages)
