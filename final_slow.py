@@ -71,8 +71,8 @@ st.markdown("""
 st.title("🔍 OpenBot Chat")
 
 # Checkbox for debugging and displaying the combined summary content
-#if st.checkbox("Show Summarized README Content"):
-#    st.text_area("Combined Summarized README Content", combined_summary_content, height=200)
+if st.checkbox("Show Summarized README Content"):
+    st.text_area("Combined Summarized README Content", combined_summary_content, height=200)
 
 # User input area in the form
 with st.form(key="user_input_form"):
