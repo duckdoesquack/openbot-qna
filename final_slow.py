@@ -147,7 +147,7 @@ for role, message in st.session_state.chat_history:
     else:
         st.markdown(f"""
             <div class="response-card">
-                <strong>Gemini-Pro:</strong>
+                <strong>OpenBot:</strong>
                 <p>{message}</p>
             </div>
             """, unsafe_allow_html=True)
