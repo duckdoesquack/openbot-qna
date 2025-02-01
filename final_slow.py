@@ -86,7 +86,7 @@ with st.form(key="user_input_form"):
 # Function to check if the response contains a source link
 def contains_source_link(response_text):
     """Check if the response contains a valid source URL."""
-    return "Source:" in response_text and "http" in response_text
+    return "Source:" in response_text and "http" or "github.com" in response_text
 
 # Process user input and generate response
 if submit_button and user_input:
