@@ -130,7 +130,7 @@ Please provide a comprehensive answer and cite which README file(s) the informat
     if valid_responses:
         final_response = "\n\n---\n\n".join(valid_responses)
     else:
-        final_response = "I could not find a direct answer in the README files. Let me know if you’d like me to search differently!"
+        final_response = "I could not find a direct answer. Try to search differently!"
 
     # Add the final response to chat history
     st.session_state.chat_history.append(("assistant", final_response))
