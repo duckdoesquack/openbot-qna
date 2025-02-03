@@ -28,4 +28,4 @@ jobs:
 
       - name: Run the JSON processing script
         run: |
-          python update_json.py
+          python preprocessing_readme.py
