@@ -3,29 +3,29 @@ name: Daily JSON Processing
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs at midnight UTC every night
-  workflow_dispatch:  # Allows manual triggering via GitHub UI
+  workflow_dispatch:
 
 jobs:
   process_json:
-    runs-on: ubuntu-latest  # The environment the workflow will run in
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2  # Checks out your repository so the script can run
+        uses: actions/checkout@v2
 
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'  # Upgraded Python version
+          python-version: '3.9'  # Change to 3.9
 
-      - name: Install LangChain Gemini manually
+      - name: Upgrade pip
         run: |
-          pip install langchain_google_gemini  # Manually install package first
+          python -m pip install --upgrade pip
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt  # Installs dependencies from file
+          pip install -r requirements.txt
 
       - name: Run the JSON processing script
         run: |
-          python update_json.py  # The script that updates or processes your JSON data
+          python update_json.py
