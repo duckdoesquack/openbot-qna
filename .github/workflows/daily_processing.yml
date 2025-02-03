@@ -16,11 +16,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'  # You can specify the version of Python you need
+          python-version: '3.9'  # Upgraded Python version
+
+      - name: Install LangChain Gemini manually
+        run: |
+          pip install langchain-google-gemini  # Manually install package first
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt  # Installs any dependencies your script needs
+          pip install -r requirements.txt  # Installs dependencies from file
 
       - name: Run the JSON processing script
         run: |
