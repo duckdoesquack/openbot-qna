@@ -20,7 +20,7 @@ jobs:
 
       - name: Install LangChain Gemini manually
         run: |
-          pip install langchain-google-gemini  # Manually install package first
+          pip install langchain_google_gemini  # Manually install package first
 
       - name: Install dependencies
         run: |
